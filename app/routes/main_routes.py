@@ -14,6 +14,35 @@ import json
 
 main_bp = Blueprint('main_bp', __name__)
 
+
+def _load_model_comparison():
+    """Load model comparison data and normalize metric keys."""
+    comparison_path = os.path.join('app', 'ml', 'models', 'model_comparison.json')
+    if not os.path.exists(comparison_path):
+        return {}
+
+    with open(comparison_path, 'r') as f:
+        raw_comparison = json.load(f)
+
+    normalized_comparison = {}
+    for model_name, metrics in raw_comparison.items():
+        auc = metrics.get('auc', metrics.get('roc_auc', 0.0))
+        normalized_comparison[model_name] = {
+            'accuracy': float(metrics.get('accuracy', 0.0)),
+            'auc': float(auc),
+            'roc_auc': float(auc),
+            'precision': float(metrics.get('precision', 0.0)),
+            'recall': float(metrics.get('recall', 0.0)),
+        }
+
+    return dict(
+        sorted(
+            normalized_comparison.items(),
+            key=lambda item: item[1]['auc'],
+            reverse=True,
+        )
+    )
+
 @main_bp.route('/')
 @login_required
 def dashboard():
@@ -83,12 +112,8 @@ def dashboard():
     # Get Gamification Statistics (Top 5 Leaderboard)
     top_gamification = GamificationProfile.query.order_by(desc(GamificationProfile.total_points)).limit(5).all()
     
-    # Load ML Model Comparison
-    model_comparison = {}
-    comparison_path = os.path.join('app', 'ml', 'models', 'model_comparison.json')
-    if os.path.exists(comparison_path):
-        with open(comparison_path, 'r') as f:
-            model_comparison = json.load(f)
+    # Load ML Model Comparison sorted by ROC-AUC
+    model_comparison = _load_model_comparison()
 
     stats = {
         'total_students': total_students,
@@ -126,21 +151,16 @@ def chatbot_page():
 @main_bp.route('/evaluation')
 def evaluation():
     """ML Model Evaluation Dashboard with comprehensive metrics and visualizations."""
-    # Load model comparison data
-    comparison_path = os.path.join('app', 'ml', 'models', 'model_comparison.json')
-    model_comparison = {}
-    
-    if os.path.exists(comparison_path):
-        with open(comparison_path, 'r') as f:
-            model_comparison = json.load(f)
+    # Load model comparison data sorted by ROC-AUC
+    model_comparison = _load_model_comparison()
     
     # Prepare data for charts
     model_names = list(model_comparison.keys())
     accuracies = [model_comparison[m]['accuracy'] * 100 for m in model_names]
     auc_scores = [model_comparison[m]['auc'] for m in model_names]
     
-    # Find best model
-    best_model = max(model_comparison.items(), key=lambda x: x[1]['accuracy']) if model_comparison else (None, None)
+    # Find best model by ROC-AUC
+    best_model = max(model_comparison.items(), key=lambda x: x[1]['auc']) if model_comparison else (None, None)
     
     return render_template(
         'evaluation.html',

@@ -8,7 +8,7 @@
 <div class="app-hero-band p-4 p-md-5 mb-4 app-slide-up">
     <p class="app-hero-kicker mb-2">Model Intelligence</p>
     <h1 class="app-hero-title"><i class="fas fa-chart-bar me-2"></i>ML Model Evaluation Dashboard</h1>
-    <p class="mb-3">Comparative view of accuracy, AUC, and reliability across all dropout prediction models.</p>
+    <p class="mb-3">Comparative view of ROC-AUC, accuracy, and reliability across all dropout prediction models.</p>
     <a href="{{ url_for('main_bp.dashboard') }}" class="btn app-btn-light">
         <i class="fas fa-arrow-left fa-sm"></i> Back to Dashboard
     </a>
@@ -23,14 +23,14 @@
                 <i class="fas fa-trophy fa-3x text-warning me-3"></i>
                 <div>
                     <h4 class="alert-heading mb-1">
-                        <strong>Best Performing Model: {{ best_model[0] }}</strong>
+                        <strong>Best Performing Model by ROC-AUC: {{ best_model[0] }}</strong>
                     </h4>
                     <p class="mb-0">
-                        Accuracy: <strong>{{ "%.2f"|format(best_model[1].accuracy * 100) }}%</strong> | 
-                        AUC-ROC: <strong>{{ "%.4f"|format(best_model[1].auc) }}</strong>
+                        ROC-AUC: <strong>{{ "%.4f"|format(best_model[1].auc) }}</strong> |
+                        Accuracy: <strong>{{ "%.2f"|format(best_model[1].accuracy * 100) }}%</strong>
                     </p>
                     <small class="text-muted">
-                        This model has been deployed for production use in student risk prediction.
+                        This model is ranked first by ROC-AUC and is deployed for student risk prediction.
                     </small>
                 </div>
             </div>
@@ -65,10 +65,10 @@
                 <div class="row no-gutters align-items-center">
                     <div class="col mr-2">
                         <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                            Highest Accuracy
+                            Highest ROC-AUC
                         </div>
                         <div class="h5 mb-0 font-weight-bold text-gray-800">
-                            {{ "%.2f"|format(accuracies|max) }}%
+                            {{ "%.4f"|format(auc_scores|max) }}
                         </div>
                     </div>
                     <div class="col-auto">
@@ -85,14 +85,14 @@
                 <div class="row no-gutters align-items-center">
                     <div class="col mr-2">
                         <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
-                            Best AUC-ROC
+                            Highest Accuracy
                         </div>
                         <div class="h5 mb-0 font-weight-bold text-gray-800">
-                            {{ "%.4f"|format(auc_scores|max) }}
+                            {{ "%.2f"|format(accuracies|max) }}%
                         </div>
                     </div>
                     <div class="col-auto">
-                        <i class="fas fa-chart-line fa-2x text-gray-300"></i>
+                        <i class="fas fa-chart-bar fa-2x text-gray-300"></i>
                     </div>
                 </div>
             </div>
@@ -127,7 +127,7 @@
         <div class="card app-surface-card border-0">
             <div class="card-header py-3">
                 <h6 class="m-0 font-weight-bold text-primary">
-                    <i class="fas fa-chart-bar"></i> Model Accuracy Comparison
+                    <i class="fas fa-chart-bar"></i> Model Performance Comparison
                 </h6>
             </div>
             <div class="card-body">
@@ -290,7 +290,7 @@
                     <h6 class="text-warning"><i class="fas fa-layer-group"></i> Ensemble</h6>
                     <p class="text-sm mb-0">
                         Combines all three models using soft voting (probability averaging).
-                        <strong>Best for:</strong> Overall highest accuracy and robustness.
+                        <strong>Best for:</strong> Overall robustness.
                     </p>
                 </div>
             </div>
@@ -337,7 +337,7 @@
                         </tr>
                         <tr>
                             <td><strong>Evaluation Metrics:</strong></td>
-                            <td>Accuracy, AUC-ROC, Precision, Recall, F1-Score</td>
+                            <td>ROC-AUC, Accuracy, Precision, Recall, F1-Score</td>
                         </tr>
                     </tbody>
                 </table>
@@ -416,6 +416,7 @@
                 </h6>
                 <div class="row">
                     <div class="col-md-6">
+                        <p><strong>ROC-AUC:</strong> Measures how well the model ranks dropout risk across all thresholds.</p>
                         <p><strong>Accuracy:</strong> Percentage of correct predictions (both dropout and enrolled students).</p>
                         <p><strong>AUC-ROC:</strong> Model's ability to distinguish between classes (0.5 = random, 1.0 = perfect).</p>
                     </div>
@@ -426,8 +427,8 @@
                 </div>
                 <hr>
                 <p class="mb-0 text-muted">
-                    <i class="fas fa-info-circle"></i> <strong>Recommendation:</strong> The Ensemble model provides the best overall performance 
-                    and is currently deployed for production use. It balances accuracy and robustness across different student profiles.
+                    <i class="fas fa-info-circle"></i> <strong>Recommendation:</strong> The {{ best_model[0] }} model provides the best performance by ROC-AUC 
+                    and is currently deployed for production use. It excels at ranking students by dropout risk across all decision thresholds.
                 </p>
             </div>
         </div>

@@ -188,11 +188,14 @@ class MLModelManager:
         return predictions
     
     def get_best_model(self):
-        """Get the best performing model based on accuracy."""
+        """Get the best performing model based on ROC-AUC."""
         if not self.comparison:
             return 'random_forest'  # Default
         
-        best_model = max(self.comparison.items(), key=lambda x: x[1]['accuracy'])
+        best_model = max(
+            self.comparison.items(),
+            key=lambda x: x[1].get('auc', x[1].get('roc_auc', 0.0))
+        )
         return best_model[0].lower().replace(' ', '_')
     
     def get_model_metrics(self):

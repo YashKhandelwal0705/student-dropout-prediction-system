@@ -308,24 +308,28 @@ def main():
         'Random Forest': {
             'accuracy': float(rf_acc), 
             'auc': float(rf_auc),
+            'roc_auc': float(rf_auc),
             'precision': float(rf_prec),
             'recall': float(rf_rec)
         },
         'Gradient Boosting': {
             'accuracy': float(gb_acc), 
             'auc': float(gb_auc),
+            'roc_auc': float(gb_auc),
             'precision': float(gb_prec),
             'recall': float(gb_rec)
         },
         'Neural Network': {
             'accuracy': float(nn_acc), 
             'auc': float(nn_auc),
+            'roc_auc': float(nn_auc),
             'precision': float(nn_prec),
             'recall': float(nn_rec)
         },
         'Ensemble': {
             'accuracy': float(ens_acc), 
             'auc': float(ens_auc),
+            'roc_auc': float(ens_auc),
             'precision': float(ens_prec),
             'recall': float(ens_rec)
         }
@@ -340,9 +344,9 @@ def main():
     for model_name, metrics in results.items():
         print(f"{model_name:<20} {metrics['accuracy']:<12.4f} {metrics['auc']:<12.4f} {metrics['precision']:<12.4f} {metrics['recall']:<12.4f}")
     
-    # Find best model
-    best_model = max(results.items(), key=lambda x: x[1]['accuracy'])
-    print(f"\n🏆 Best Model: {best_model[0]} (Accuracy: {best_model[1]['accuracy']:.4f})")
+    # Find best model by ROC-AUC
+    best_model = max(results.items(), key=lambda x: x[1]['auc'])
+    print(f"\n🏆 Best Model: {best_model[0]} (ROC-AUC: {best_model[1]['auc']:.4f})")
     
     # Save comparison
     save_model_comparison(results)

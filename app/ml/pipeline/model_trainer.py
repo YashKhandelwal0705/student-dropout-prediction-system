@@ -57,6 +57,7 @@ class ModelTrainer:
         result = {
             'model_name': model_name,
             'accuracy': float(accuracy),
+            'auc': float(roc_auc),
             'roc_auc': float(roc_auc),
             'confusion_matrix': confusion_matrix(y_test, y_pred).tolist()
         }
@@ -94,8 +95,8 @@ class ModelTrainer:
         joblib.dump(gb_model, GRADIENT_BOOST_PATH)
         joblib.dump(nn_model, NEURAL_NET_PATH)
         
-        # Select best model based on accuracy
-        best_model_name = max(self.results, key=lambda k: self.results[k]['accuracy'])
+        # Select best model based on ROC-AUC
+        best_model_name = max(self.results, key=lambda k: self.results[k]['roc_auc'])
         best_model = self.models[best_model_name]
         
         # Save best model as current model
@@ -108,7 +109,7 @@ class ModelTrainer:
         
         print("\n" + "=" * 60)
         print(f"✅ BEST MODEL: {best_model_name}")
-        print(f"   Accuracy: {self.results[best_model_name]['accuracy']:.4f}")
+        print(f"   ROC-AUC: {self.results[best_model_name]['roc_auc']:.4f}")
         print(f"   Saved to: {CURRENT_MODEL_PATH}")
         print("=" * 60)
         
