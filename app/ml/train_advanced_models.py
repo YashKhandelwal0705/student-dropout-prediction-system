@@ -98,7 +98,7 @@ def train_random_forest(X_train, y_train, X_test, y_test):
     recall = report_dict['weighted avg']['recall']
     
     print(f"✅ Accuracy: {accuracy:.4f}")
-    print(f"✅ AUC-ROC: {auc:.4f}")
+    print(f"✅ ROC-AUC: {auc:.4f}")
     print(f"✅ Precision: {precision:.4f}")
     print(f"✅ Recall: {recall:.4f}")
     print(f"✅ CV Accuracy: {cv_scores.mean():.4f} (+/- {cv_scores.std():.4f})")
@@ -147,7 +147,7 @@ def train_gradient_boosting(X_train, y_train, X_test, y_test):
     recall = report_dict['weighted avg']['recall']
     
     print(f"✅ Accuracy: {accuracy:.4f}")
-    print(f"✅ AUC-ROC: {auc:.4f}")
+    print(f"✅ ROC-AUC: {auc:.4f}")
     print(f"✅ Precision: {precision:.4f}")
     print(f"✅ Recall: {recall:.4f}")
     print(f"✅ CV Accuracy: {cv_scores.mean():.4f} (+/- {cv_scores.std():.4f})")
@@ -204,7 +204,7 @@ def train_neural_network(X_train, y_train, X_test, y_test):
     recall = report_dict['weighted avg']['recall']
     
     print(f"✅ Accuracy: {accuracy:.4f}")
-    print(f"✅ AUC-ROC: {auc:.4f}")
+    print(f"✅ ROC-AUC: {auc:.4f}")
     print(f"✅ Precision: {precision:.4f}")
     print(f"✅ Recall: {recall:.4f}")
     print(f"✅ Training iterations: {model.n_iter_}")
@@ -257,7 +257,7 @@ def train_ensemble_model(rf_model, gb_model, nn_model, nn_scaler, X_train, y_tra
     recall = report_dict['weighted avg']['recall']
     
     print(f"✅ Accuracy: {accuracy:.4f}")
-    print(f"✅ AUC-ROC: {auc:.4f}")
+    print(f"✅ ROC-AUC: {auc:.4f}")
     print(f"✅ Precision: {precision:.4f}")
     print(f"✅ Recall: {recall:.4f}")
     print("\nClassification Report:")
@@ -339,7 +339,7 @@ def main():
     print("\n" + "="*70)
     print("MODEL COMPARISON")
     print("="*70)
-    print(f"{'Model':<20} {'Accuracy':<12} {'AUC-ROC':<12} {'Precision':<12} {'Recall':<12}")
+    print(f"{'Model':<20} {'Accuracy':<12} {'ROC-AUC':<12} {'Precision':<12} {'Recall':<12}")
     print("-"*70)
     for model_name, metrics in results.items():
         print(f"{model_name:<20} {metrics['accuracy']:<12.4f} {metrics['auc']:<12.4f} {metrics['precision']:<12.4f} {metrics['recall']:<12.4f}")

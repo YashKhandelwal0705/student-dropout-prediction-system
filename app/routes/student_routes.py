@@ -6,7 +6,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 from app.controllers import data_controller
 from app.controllers.alert_controller import AlertController
-from app.models import Student, Alert, Intervention, LMSActivity, BehavioralData, GamificationProfile, Teacher
+from app.models import Student, Alert, Intervention, LMSActivity, BehavioralData, GamificationProfile, Teacher, TeacherStudentAssignment
 from app.controllers.gamification_controller import GamificationController
 from app.extensions import db
 from sqlalchemy import desc

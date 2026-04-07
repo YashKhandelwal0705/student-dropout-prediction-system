@@ -138,12 +138,12 @@
         </div>
     </div>
 
-    <!-- AUC-ROC Comparison Chart -->
+    <!-- ROC-AUC Comparison Chart -->
     <div class="col-lg-6 mb-4">
         <div class="card app-surface-card border-0">
             <div class="card-header py-3">
                 <h6 class="m-0 font-weight-bold text-info">
-                    <i class="fas fa-chart-line"></i> AUC-ROC Score Comparison
+                    <i class="fas fa-chart-line"></i> ROC-AUC Score Comparison
                 </h6>
             </div>
             <div class="card-body">
@@ -190,7 +190,7 @@
                                 <th width="5%">#</th>
                                 <th width="25%">Model Name</th>
                                 <th width="15%">Accuracy (%)</th>
-                                <th width="15%">AUC-ROC Score</th>
+                                <th width="15%">ROC-AUC Score</th>
                                 <th width="15%">Precision</th>
                                 <th width="15%">Recall</th>
                                 <th width="10%">Status</th>
@@ -418,7 +418,7 @@
                     <div class="col-md-6">
                         <p><strong>ROC-AUC:</strong> Measures how well the model ranks dropout risk across all thresholds.</p>
                         <p><strong>Accuracy:</strong> Percentage of correct predictions (both dropout and enrolled students).</p>
-                        <p><strong>AUC-ROC:</strong> Model's ability to distinguish between classes (0.5 = random, 1.0 = perfect).</p>
+                        <p><strong>ROC-AUC:</strong> Model's ability to distinguish between classes (0.5 = random, 1.0 = perfect).</p>
                     </div>
                     <div class="col-md-6">
                         <p><strong>Precision:</strong> Of students predicted to dropout, what percentage actually dropped out?</p>
@@ -537,7 +537,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 console.log('Accuracy Chart created successfully!');
 
-// Chart 2: AUC-ROC Line Chart
+// Chart 2: ROC-AUC Line Chart
 console.log('Creating AUC Chart...');
 const aucCtx = aucCanvas.getContext('2d');
 new Chart(aucCtx, {
@@ -545,7 +545,7 @@ new Chart(aucCtx, {
     data: {
         labels: modelNames,
         datasets: [{
-            label: 'AUC-ROC Score',
+            label: 'ROC-AUC Score',
             data: aucScores,
             backgroundColor: 'rgba(54, 185, 204, 0.2)',
             borderColor: borderColors.info,
@@ -566,7 +566,7 @@ new Chart(aucCtx, {
             },
             title: {
                 display: true,
-                text: 'AUC-ROC Score Comparison',
+                text: 'ROC-AUC Score Comparison',
                 font: {
                     size: 16
                 }
@@ -603,7 +603,7 @@ new Chart(combinedCtx, {
                 borderWidth: 2
             },
             {
-                label: 'AUC-ROC (× 100)',
+                label: 'ROC-AUC (× 100)',
                 data: aucScores.map(x => x * 100),
                 backgroundColor: colors.info,
                 borderColor: borderColors.info,
