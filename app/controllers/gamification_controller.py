@@ -3,7 +3,7 @@ Gamification Controller
 Handles gamification logic, points, badges, achievements, and streaks
 """
 from datetime import datetime, date
-from app.models import Student, GamificationProfile
+from app.models import Student, GamificationProfile, LMSActivity
 from app.extensions import db
 
 
@@ -13,16 +13,39 @@ class GamificationController:
     # Points configuration
     POINTS = {
         'attendance': 10,
+        'attendance_marked': 10,
         'assignment_submit': 20,
         'assignment_submit_early': 30,
         'perfect_grade': 50,
         'grade_improvement': 25,
         'forum_participation': 15,
         'lms_login': 5,
+        'prediction_request': 20,
+        'counselling_interaction': 20,
         'counselling_attended': 30,
+        'challenge_completed': 100,
         'streak_week': 100,
         'streak_month': 500
     }
+
+    ACTION_CATEGORIES = {
+        'attendance': 'attendance',
+        'attendance_marked': 'attendance',
+        'assignment_submit': 'academic',
+        'assignment_submit_early': 'academic',
+        'perfect_grade': 'academic',
+        'grade_improvement': 'improvement',
+        'forum_participation': 'engagement',
+        'lms_login': 'engagement',
+        'prediction_request': 'academic',
+        'counselling_interaction': 'engagement',
+        'counselling_attended': 'engagement',
+        'streak_week': 'attendance',
+        'streak_month': 'attendance',
+        'challenge_completed': 'improvement',
+    }
+
+    SUPPORTED_REALTIME_ACTIONS = set(POINTS.keys())
     
     # Badge definitions
     BADGES = {
@@ -83,22 +106,16 @@ class GamificationController:
     @staticmethod
     def award_points(student_id, action, custom_points=None):
         """Award points for a specific action"""
+        if custom_points is None and action in GamificationController.SUPPORTED_REALTIME_ACTIONS:
+            return GamificationController.process_realtime_action(student_id, action)
+
         profile = GamificationController.get_or_create_profile(student_id)
         
         points = custom_points if custom_points else GamificationController.POINTS.get(action, 0)
-        
-        # Determine category
-        category = 'general'
-        if action in ['attendance', 'perfect_attendance_week', 'perfect_attendance_month']:
-            category = 'attendance'
-        elif action in ['assignment_submit', 'assignment_submit_early', 'perfect_grade', 'grade_improvement']:
-            category = 'academic'
-        elif action in ['forum_participation', 'lms_login']:
-            category = 'engagement'
-        elif action in ['grade_improvement', 'comeback_kid']:
-            category = 'improvement'
+        category = GamificationController.ACTION_CATEGORIES.get(action, 'general')
         
         profile.add_points(points, category)
+        GamificationController._refresh_ranks_without_commit()
         db.session.commit()
         
         return {
@@ -116,13 +133,18 @@ class GamificationController:
         if attended:
             profile.update_streak('attendance')
             
-            # Award streak badges
-            if profile.current_attendance_streak == 7:
-                GamificationController.award_badge(student_id, 'perfect_attendance_week')
-                GamificationController.award_points(student_id, 'streak_week')
-            elif profile.current_attendance_streak == 30:
-                GamificationController.award_badge(student_id, 'perfect_attendance_month')
-                GamificationController.award_points(student_id, 'streak_month')
+            # Award streak badges at thresholds (check both independently, no intermediate commits)
+            if profile.current_attendance_streak >= 7:
+                week_badge = GamificationController.BADGES.get('perfect_attendance_week')
+                if week_badge and not any((b.get('name') == week_badge['name']) for b in (profile.badges or []) if isinstance(b, dict)):
+                    profile.award_badge(week_badge['name'], week_badge['description'], week_badge.get('icon'))
+                    profile.add_points(GamificationController.POINTS.get('streak_week', 0), 'attendance')
+            
+            if profile.current_attendance_streak >= 30:
+                month_badge = GamificationController.BADGES.get('perfect_attendance_month')
+                if month_badge and not any((b.get('name') == month_badge['name']) for b in (profile.badges or []) if isinstance(b, dict)):
+                    profile.award_badge(month_badge['name'], month_badge['description'], month_badge.get('icon'))
+                    profile.add_points(GamificationController.POINTS.get('streak_month', 0), 'attendance')
         else:
             # Streak broken
             profile.current_attendance_streak = 0
@@ -243,6 +265,167 @@ class GamificationController:
             # rank_in_class would require class information
         
         db.session.commit()
+
+    @staticmethod
+    def _refresh_ranks_without_commit():
+        """Refresh in-memory leaderboard ranks for all profiles."""
+        profiles = GamificationProfile.query.order_by(GamificationProfile.total_points.desc()).all()
+        for rank, ranked_profile in enumerate(profiles, 1):
+            ranked_profile.rank_in_school = rank
+
+    @staticmethod
+    def _get_or_create_today_lms_activity(student_id):
+        """Get or create today's LMS activity record for counter-based actions."""
+        today = datetime.utcnow().date()
+        activity = (
+            LMSActivity.query
+            .filter_by(student_id=student_id)
+            .order_by(LMSActivity.activity_date.desc())
+            .first()
+        )
+
+        if activity and activity.activity_date and activity.activity_date.date() == today:
+            return activity
+
+        activity = LMSActivity(student_id=student_id, activity_date=datetime.utcnow())
+        db.session.add(activity)
+        return activity
+
+    @staticmethod
+    def _calculate_badge_context(student_id, extra_context=None):
+        """Build badge context from student and latest LMS data."""
+        student = Student.query.get(student_id)
+        latest_lms = (
+            LMSActivity.query
+            .filter_by(student_id=student_id)
+            .order_by(LMSActivity.activity_date.desc())
+            .first()
+        )
+
+        sem1_grade = student.curricular_units_1st_sem_grade if student else 0
+        sem2_grade = student.curricular_units_2nd_sem_grade if student else 0
+        avg_grade = ((sem1_grade + sem2_grade) / 2) if student else 0
+
+        grade_improvement_percentage = 0
+        if sem1_grade > 0 and sem2_grade > sem1_grade:
+            grade_improvement_percentage = ((sem2_grade - sem1_grade) / sem1_grade) * 100
+
+        context = {
+            'avg_grade': avg_grade,
+            'grade_improvement_percentage': grade_improvement_percentage,
+            'early_submissions': latest_lms.assignment_submissions if latest_lms else 0,
+            'forum_posts': latest_lms.forum_posts if latest_lms else 0,
+        }
+
+        if extra_context:
+            context.update(extra_context)
+
+        return context
+
+    @staticmethod
+    def _award_badges_without_commit(profile, student_data):
+        """Evaluate and append newly earned badges in-memory without committing."""
+        awarded_badges = []
+
+        checks = [
+            ('academic_excellence', student_data.get('avg_grade', 0) >= 18),
+            ('improvement_hero', student_data.get('grade_improvement_percentage', 0) > 20),
+            ('early_bird', student_data.get('early_submissions', 0) >= 10),
+            ('social_butterfly', student_data.get('forum_posts', 0) >= 50),
+        ]
+
+        existing_badges = profile.badges or []
+        existing_names = {b.get('name') for b in existing_badges if isinstance(b, dict)}
+
+        for badge_key, condition in checks:
+            if not condition:
+                continue
+            badge = GamificationController.BADGES.get(badge_key)
+            if not badge or badge['name'] in existing_names:
+                continue
+            profile.award_badge(
+                badge_name=badge['name'],
+                badge_description=badge['description'],
+                badge_icon=badge.get('icon')
+            )
+            existing_names.add(badge['name'])
+            awarded_badges.append(badge['name'])
+
+        return awarded_badges
+
+    @staticmethod
+    def process_realtime_action(student_id, action, attended=True, badge_context=None):
+        """Award points/streaks/badges for a user action and refresh ranks immediately."""
+        if action == 'attendance':
+            action = 'attendance_marked'
+
+        if action not in GamificationController.SUPPORTED_REALTIME_ACTIONS:
+            raise ValueError(f'Unsupported gamification action: {action}')
+
+        profile = GamificationController.get_or_create_profile(student_id)
+        points_awarded = 0
+        category = GamificationController.ACTION_CATEGORIES.get(action, 'general')
+
+        if action in {'attendance_marked'}:
+            if attended:
+                points_awarded = GamificationController.POINTS.get('attendance_marked', 0)
+                profile.add_points(points_awarded, 'attendance')
+                profile.update_streak('attendance')
+
+                if profile.current_attendance_streak >= 7:
+                    week_badge = GamificationController.BADGES.get('perfect_attendance_week')
+                    if week_badge:
+                        if not any((b.get('name') == week_badge['name']) for b in (profile.badges or []) if isinstance(b, dict)):
+                            profile.award_badge(week_badge['name'], week_badge['description'], week_badge.get('icon'))
+                            profile.add_points(GamificationController.POINTS.get('streak_week', 0), 'attendance')
+
+                if profile.current_attendance_streak >= 30:
+                    month_badge = GamificationController.BADGES.get('perfect_attendance_month')
+                    if month_badge:
+                        if not any((b.get('name') == month_badge['name']) for b in (profile.badges or []) if isinstance(b, dict)):
+                            profile.award_badge(month_badge['name'], month_badge['description'], month_badge.get('icon'))
+                            profile.add_points(GamificationController.POINTS.get('streak_month', 0), 'attendance')
+            else:
+                profile.current_attendance_streak = 0
+                profile.last_activity_date = datetime.utcnow().date()
+        else:
+            points_awarded = GamificationController.POINTS.get(action, 0)
+            if points_awarded:
+                profile.add_points(points_awarded, category)
+
+            if action in {'assignment_submit', 'assignment_submit_early'}:
+                profile.update_streak('submission')
+                lms_activity = GamificationController._get_or_create_today_lms_activity(student_id)
+                lms_activity.assignment_submissions = (lms_activity.assignment_submissions or 0) + 1
+
+            if action == 'forum_participation':
+                lms_activity = GamificationController._get_or_create_today_lms_activity(student_id)
+                lms_activity.forum_posts = (lms_activity.forum_posts or 0) + 1
+
+            if action == 'lms_login':
+                lms_activity = GamificationController._get_or_create_today_lms_activity(student_id)
+                lms_activity.login_count = (lms_activity.login_count or 0) + 1
+
+            if action == 'challenge_completed':
+                profile.challenges_completed = (profile.challenges_completed or 0) + 1
+
+        student_data = GamificationController._calculate_badge_context(student_id, badge_context)
+        new_badges = GamificationController._award_badges_without_commit(profile, student_data)
+
+        GamificationController._refresh_ranks_without_commit()
+
+        db.session.commit()
+
+        return {
+            'student_id': student_id,
+            'action': action,
+            'points_awarded': points_awarded,
+            'total_points': profile.total_points,
+            'level': profile.level,
+            'current_streak': profile.current_streak,
+            'new_badges': new_badges,
+            'rank_in_school': profile.rank_in_school,
+        }
     
     @staticmethod
     def get_student_progress(student_id):
@@ -315,10 +498,9 @@ class GamificationController:
                     if progress_value >= challenge.get('target_value', 0):
                         challenge['status'] = 'completed'
                         challenge['completed_at'] = datetime.utcnow().isoformat()
-                        profile.challenges_completed += 1
                         
                         # Award points for completing challenge
-                        GamificationController.award_points(student_id, 'challenge_completed', custom_points=100)
+                        GamificationController.process_realtime_action(student_id, 'challenge_completed')
                     
                     db.session.commit()
                     return challenge

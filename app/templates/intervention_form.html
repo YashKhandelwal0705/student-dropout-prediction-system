@@ -45,7 +45,7 @@
                                    disabled>
                             {% else %}
                             <small class="form-text text-muted d-block mb-2">
-                                Only students with active alerts are shown, ordered by latest alert time.
+                                Only students with active or acknowledged alerts are shown, ordered by latest alert time.
                             </small>
                             <select class="form-select auth-input" id="student_id" name="student_id" required>
                                 <option value="">Select a student...</option>
@@ -56,7 +56,7 @@
                                 {% endfor %}
                             </select>
                             {% if not students %}
-                            <small class="form-text text-muted">No active-alert students are currently waiting for intervention.</small>
+                            <small class="form-text text-muted">No active or acknowledged alert students are currently waiting for intervention.</small>
                             {% endif %}
                             {% endif %}
                         </div>
@@ -77,6 +77,10 @@
                                 <option value="Financial Aid" 
                                     {% if (prefill and prefill.intervention_type == 'Financial') or (intervention and intervention.intervention_type == 'Financial Aid') %}selected{% endif %}>
                                     Financial Aid
+                                </option>
+                                <option value="Psychological Support" 
+                                    {% if (prefill and prefill.intervention_type == 'Psychological') or (intervention and intervention.intervention_type == 'Psychological Support') %}selected{% endif %}>
+                                    Psychological Support
                                 </option>
                                 <option value="Mentoring" 
                                     {% if intervention and intervention.intervention_type == 'Mentoring' %}selected{% endif %}>

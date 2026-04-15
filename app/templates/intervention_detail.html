@@ -17,10 +17,19 @@
                        class="btn app-btn-secondary-soft">
                         <i class="fas fa-edit me-1"></i> Edit
                     </a>
+                    {% if intervention.status == 'Scheduled' %}
+                    <form method="POST" action="{{ url_for('intervention_bp.start_intervention', intervention_id=intervention.id) }}" class="d-inline">
+                        <button type="submit" class="btn app-btn-warn">
+                            <i class="fas fa-play me-1"></i> Start
+                        </button>
+                    </form>
+                    {% endif %}
+                    {% if intervention.status == 'In Progress' %}
                     <a href="{{ url_for('intervention_bp.complete_intervention', intervention_id=intervention.id) }}" 
                        class="btn app-btn-success">
                         <i class="fas fa-check me-1"></i> Complete
                     </a>
+                    {% endif %}
                     {% endif %}
                     <a href="{{ url_for('intervention_bp.interventions_list') }}" 
                        class="btn app-btn-secondary-soft">
@@ -225,7 +234,14 @@
                             <i class="fas fa-bell me-1"></i> View Related Alert
                         </a>
                         {% endif %}
-                        {% if intervention.status != 'Completed' %}
+                        {% if intervention.status == 'Scheduled' %}
+                        <form method="POST" action="{{ url_for('intervention_bp.start_intervention', intervention_id=intervention.id) }}" class="d-inline w-100">
+                            <button type="submit" class="btn app-btn-warn w-100">
+                                <i class="fas fa-play me-1"></i> Start Intervention
+                            </button>
+                        </form>
+                        {% endif %}
+                        {% if intervention.status == 'In Progress' %}
                         <a href="{{ url_for('intervention_bp.complete_intervention', intervention_id=intervention.id) }}" 
                            class="btn app-btn-success">
                             <i class="fas fa-check me-1"></i> Complete Intervention

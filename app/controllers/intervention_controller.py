@@ -149,22 +149,48 @@ class InterventionController:
     @staticmethod
     def _check_alert_resolution(intervention):
         """Check if associated alert can be resolved based on intervention outcome"""
-        # Find related active alerts for the student
-        active_alerts = Alert.query.filter_by(
+        # Find acknowledged alerts for this student and resolve those related to this intervention.
+        acknowledged_alerts = Alert.query.filter_by(
             student_id=intervention.student_id,
-            alert_type=intervention.intervention_type,
             status='Acknowledged'
         ).all()
+
+        intervention_type = (intervention.intervention_type or '').strip()
+        intervention_to_alert_type = {
+            'Academic Support': 'Academic',
+            'Academic': 'Academic',
+            'Counseling': 'Behavioral',
+            'Counselling': 'Behavioral',
+            'Behavioral': 'Behavioral',
+            'Financial Aid': 'Financial',
+            'Financial': 'Financial',
+            'Psychological Support': 'Psychological',
+            'Psychological': 'Psychological',
+        }
+        mapped_alert_type = intervention_to_alert_type.get(intervention_type)
+
+        # Without a linked alert_id or known type mapping, do not auto-resolve.
+        if not intervention.alert_id and not mapped_alert_type:
+            return
         
         # If intervention was effective (rating >= 4), resolve related alerts
         if intervention.effectiveness_rating and intervention.effectiveness_rating >= 4:
-            for alert in active_alerts:
+            resolved_any = False
+            for alert in acknowledged_alerts:
+                # Prefer exact linked alert, else resolve by normalized type mapping.
+                if intervention.alert_id and alert.id != intervention.alert_id:
+                    continue
+                if not intervention.alert_id and mapped_alert_type and alert.alert_type != mapped_alert_type:
+                    continue
+
                 alert.status = 'Resolved'
                 alert.resolved_at = datetime.utcnow()
                 alert.resolved_by = intervention.assigned_to
                 alert.action_taken = f'Intervention completed: {intervention.title}'
+                resolved_any = True
             
-            db.session.commit()
+            if resolved_any:
+                db.session.commit()
     
     @staticmethod
     def add_intervention_notes(intervention_id, notes):

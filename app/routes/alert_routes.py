@@ -27,18 +27,15 @@ def alerts_dashboard():
     
     # Get alerts with filters
     alerts = AlertController.get_active_alerts(
+        status=status,
         severity=severity,
         alert_type=alert_type
     )
-    
-    # Additional filtering by status
-    if status and status != 'All':
-        alerts = [a for a in alerts if a.status == status]
 
     # De-duplicate legacy redundant alerts by keeping the newest per key.
     deduped = {}
     for alert in alerts:
-        dedupe_key = (alert.student_id, alert.alert_type, alert.severity, alert.title.strip())
+        dedupe_key = (alert.student_id, alert.alert_type, alert.severity, alert.status, alert.title.strip())
         if dedupe_key not in deduped:
             deduped[dedupe_key] = alert
             continue

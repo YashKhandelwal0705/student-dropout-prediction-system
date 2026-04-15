@@ -186,6 +186,11 @@ def request_counselling(student_id):
         )
         db.session.add(alert)
         db.session.commit()
+
+        GamificationController.process_realtime_action(
+            student_id=student_id,
+            action='counselling_interaction'
+        )
         
         flash('Your counselling request has been submitted successfully. A counselor will contact you soon.', 'success')
     

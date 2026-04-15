@@ -185,11 +185,20 @@
                                    class="btn btn-sm btn-outline-primary" title="View Details">
                                     <i class="fas fa-eye"></i>
                                 </a>
-                                {% if intervention.status == 'Scheduled' or intervention.status == 'In Progress' %}
+                                {% if intervention.status == 'Scheduled' %}
+                                <form method="POST" action="{{ url_for('intervention_bp.start_intervention', intervention_id=intervention.id) }}" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-warning" title="Start">
+                                        <i class="fas fa-play"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                                {% if intervention.status == 'In Progress' %}
                                 <a href="{{ url_for('intervention_bp.complete_intervention', intervention_id=intervention.id) }}" 
                                    class="btn btn-sm btn-outline-success" title="Complete">
                                     <i class="fas fa-check"></i>
                                 </a>
+                                {% endif %}
+                                {% if intervention.status == 'Scheduled' or intervention.status == 'In Progress' %}
                                 <a href="{{ url_for('intervention_bp.edit_intervention', intervention_id=intervention.id) }}" 
                                    class="btn btn-sm btn-outline-secondary" title="Edit">
                                     <i class="fas fa-edit"></i>

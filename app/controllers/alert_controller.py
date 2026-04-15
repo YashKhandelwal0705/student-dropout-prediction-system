@@ -51,19 +51,19 @@ class AlertController:
         # Check academic performance
         avg_grade = (student.curricular_units_1st_sem_grade + student.curricular_units_2nd_sem_grade) / 2
         academic_alert = AlertController._check_academic_performance(student, avg_grade)
-        if academic_alert and not AlertController._alert_exists(student_id, 'Academic', 'Active'):
+        if academic_alert and not AlertController._alert_exists(student_id, 'Academic', 'Open'):
             alerts_generated.append(academic_alert)
         
         # Check financial status
         financial_alert = AlertController._check_financial_status(student)
-        if financial_alert and not AlertController._alert_exists(student_id, 'Financial', 'Active'):
+        if financial_alert and not AlertController._alert_exists(student_id, 'Financial', 'Open'):
             alerts_generated.append(financial_alert)
         
         # Check behavioral data if available
         behavioral_data = BehavioralData.query.filter_by(student_id=student_id).order_by(BehavioralData.record_date.desc()).first()
         if behavioral_data:
             behavioral_alert = AlertController._check_behavioral_indicators(student, behavioral_data)
-            if behavioral_alert and not AlertController._alert_exists(student_id, 'Behavioral', 'Active'):
+            if behavioral_alert and not AlertController._alert_exists(student_id, 'Behavioral', 'Open'):
                 alerts_generated.append(behavioral_alert)
         
         # Check LMS engagement if available
@@ -71,16 +71,16 @@ class AlertController:
         if lms_activity:
             engagement_alert = AlertController._check_lms_engagement(student, lms_activity)
             # LMS engagement produces an Academic alert; avoid redundant parallel Academic alerts.
-            has_active_academic = AlertController._alert_exists(student_id, 'Academic', 'Active')
+            has_open_academic = AlertController._alert_exists(student_id, 'Academic', 'Open')
             has_recent_engagement = AlertController._recent_alert_exists(student_id, 'Academic', 'Low LMS Engagement', days=7)
-            if engagement_alert and not has_active_academic and not has_recent_engagement:
+            if engagement_alert and not has_open_academic and not has_recent_engagement:
                 alerts_generated.append(engagement_alert)
         
         # Check dropout risk prediction
         latest_prediction = RiskPrediction.query.filter_by(student_id=student_id).order_by(RiskPrediction.prediction_date.desc()).first()
         if latest_prediction:
             dropout_alert = AlertController._check_dropout_risk(student, latest_prediction)
-            if dropout_alert and not AlertController._alert_exists(student_id, 'Psychological', 'Active'):
+            if dropout_alert and not AlertController._alert_exists(student_id, 'Psychological', 'Open'):
                 alerts_generated.append(dropout_alert)
         
         # Save all generated alerts
@@ -93,12 +93,18 @@ class AlertController:
     
     @staticmethod
     def _alert_exists(student_id, alert_type, status='Active'):
-        """Check if an active alert of the given type already exists for this student"""
-        return Alert.query.filter_by(
+        """Check if an alert of the given type exists for this student."""
+        query = Alert.query.filter_by(
             student_id=student_id,
-            alert_type=alert_type,
-            status=status
-        ).first() is not None
+            alert_type=alert_type
+        )
+
+        if status == 'Open':
+            query = query.filter(Alert.status.in_(['Active', 'Acknowledged']))
+        else:
+            query = query.filter(Alert.status == status)
+
+        return query.first() is not None
     
     @staticmethod
     def _recent_alert_exists(student_id, alert_type, title_contains, days=7):
@@ -109,7 +115,7 @@ class AlertController:
             Alert.alert_type == alert_type,
             Alert.title.contains(title_contains),
             Alert.created_at > cutoff_date,
-            Alert.status == 'Active'
+            Alert.status.in_(['Active', 'Acknowledged'])
         ).first() is not None
     
     @staticmethod
@@ -273,9 +279,12 @@ class AlertController:
         )
     
     @staticmethod
-    def get_active_alerts(student_id=None, severity=None, alert_type=None):
-        """Get active alerts with optional filters"""
-        query = Alert.query.filter_by(status='Active')
+    def get_active_alerts(student_id=None, severity=None, alert_type=None, status='Active'):
+        """Get alerts with optional filters"""
+        query = Alert.query
+
+        if status and status != 'All':
+            query = query.filter_by(status=status)
         
         if student_id:
             query = query.filter_by(student_id=student_id)

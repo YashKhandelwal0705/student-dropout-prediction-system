@@ -24,7 +24,18 @@
                             <label for="password" class="form-label auth-label">
                                 <i class="fas fa-lock me-1"></i>Password
                             </label>
-                            <input type="password" class="form-control form-control-lg auth-input" id="password" name="password" required>
+                            <div class="input-group">
+                                <input type="password" class="form-control form-control-lg auth-input" id="password" name="password" required>
+                                <button
+                                    type="button"
+                                    class="btn btn-outline-secondary"
+                                    id="togglePassword"
+                                    aria-label="Show password"
+                                    aria-controls="password"
+                                >
+                                    <i class="fas fa-eye" aria-hidden="true"></i>
+                                </button>
+                            </div>
                         </div>
                         
                         <div class="mb-3 form-check">
@@ -72,4 +83,18 @@
         </div>
     </div>
 </div>
+
+<script>
+    const passwordInput = document.getElementById('password');
+    const togglePasswordButton = document.getElementById('togglePassword');
+    const togglePasswordIcon = togglePasswordButton.querySelector('i');
+
+    togglePasswordButton.addEventListener('click', function() {
+        const isHidden = passwordInput.type === 'password';
+        passwordInput.type = isHidden ? 'text' : 'password';
+        togglePasswordIcon.classList.toggle('fa-eye', !isHidden);
+        togglePasswordIcon.classList.toggle('fa-eye-slash', isHidden);
+        togglePasswordButton.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
+    });
+</script>
 {% endblock %}

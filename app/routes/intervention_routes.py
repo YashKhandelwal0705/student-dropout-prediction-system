@@ -6,6 +6,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 from app.models import Intervention, Student, Alert, User
 from app.controllers.intervention_controller import InterventionController
+from app.controllers.gamification_controller import GamificationController
 from app.extensions import db
 from datetime import datetime, timedelta
 from sqlalchemy import func
@@ -27,17 +28,17 @@ def _get_assignee_candidates():
 
 
 def _get_alert_queue_entries():
-    """Return one active alert per student, ordered by alert creation time (newest first)."""
-    active_alerts = (
+    """Return one open alert (Active or Acknowledged) per student, newest first."""
+    open_alerts = (
         Alert.query
-        .filter(Alert.status == 'Active')
+        .filter(Alert.status.in_(['Active', 'Acknowledged']))
         .order_by(Alert.created_at.desc())
         .all()
     )
 
     queue_entries = []
     seen_students = set()
-    for alert in active_alerts:
+    for alert in open_alerts:
         if alert.student_id in seen_students:
             continue
         queue_entries.append(alert)
@@ -74,7 +75,7 @@ def interventions_list():
     # Get statistics
     stats = InterventionController.get_intervention_statistics()
     
-    # Show only students currently in active alert queue (ordered by alert time)
+    # Show only students currently in open alert queue (ordered by alert time)
     alert_queue = _get_alert_queue_entries()
     students = [entry.student for entry in alert_queue if entry.student]
     
@@ -105,15 +106,18 @@ def create_intervention():
             description = request.form.get('description')
             assigned_to = request.form.get('assigned_to')
 
-            # Use alert queue source-of-truth: student must currently have an active alert.
+            # Use alert queue source-of-truth: student must have an open alert.
             queue_alert = (
                 Alert.query
-                .filter_by(student_id=int(student_id), status='Active')
+                .filter(
+                    Alert.student_id == int(student_id),
+                    Alert.status.in_(['Active', 'Acknowledged'])
+                )
                 .order_by(Alert.created_at.desc())
                 .first()
             )
             if not queue_alert:
-                flash('Selected student has no active alert in intervention queue.', 'warning')
+                flash('Selected student has no active or acknowledged alert in intervention queue.', 'warning')
                 return redirect(url_for('intervention_bp.create_intervention'))
 
             if current_user.is_teacher:
@@ -174,6 +178,10 @@ def create_from_alert(alert_id):
         return redirect(url_for('intervention_bp.interventions_list'))
 
     alert = Alert.query.get_or_404(alert_id)
+
+    if alert.status not in ['Active', 'Acknowledged']:
+        flash('Intervention can only be created from active or acknowledged alerts.', 'warning')
+        return redirect(url_for('alert_bp.alerts_dashboard'))
     
     if request.method == 'POST':
         try:
@@ -245,6 +253,28 @@ def intervention_detail(intervention_id):
                          intervention=intervention,
                          other_interventions=other_interventions)
 
+@intervention_bp.route('/<int:intervention_id>/start', methods=['POST'])
+@login_required
+def start_intervention(intervention_id):
+    """Mark a scheduled intervention as in progress"""
+    if not _can_manage_interventions(current_user):
+        flash('Only teachers, counselors, and administrators can start interventions.', 'danger')
+        return redirect(url_for('intervention_bp.interventions_list'))
+
+    intervention = Intervention.query.get_or_404(intervention_id)
+
+    if intervention.status == 'In Progress':
+        flash('Intervention is already in progress.', 'info')
+        return redirect(url_for('intervention_bp.intervention_detail', intervention_id=intervention_id))
+
+    if intervention.status != 'Scheduled':
+        flash(f'Only scheduled interventions can be started (current status: {intervention.status}).', 'warning')
+        return redirect(url_for('intervention_bp.intervention_detail', intervention_id=intervention_id))
+
+    InterventionController.update_intervention_status(intervention_id, 'In Progress')
+    flash('Intervention started successfully.', 'success')
+    return redirect(url_for('intervention_bp.intervention_detail', intervention_id=intervention_id))
+
 @intervention_bp.route('/<int:intervention_id>/complete', methods=['GET', 'POST'])
 @login_required
 def complete_intervention(intervention_id):
@@ -254,6 +284,10 @@ def complete_intervention(intervention_id):
         return redirect(url_for('intervention_bp.interventions_list'))
 
     intervention = Intervention.query.get_or_404(intervention_id)
+
+    if intervention.status != 'In Progress':
+        flash('Only in-progress interventions can be completed. Please start the intervention first.', 'warning')
+        return redirect(url_for('intervention_bp.intervention_detail', intervention_id=intervention_id))
     
     if request.method == 'POST':
         try:
@@ -276,6 +310,13 @@ def complete_intervention(intervention_id):
                 follow_up_required=follow_up_required,
                 follow_up_date=follow_up_date
             )
+
+            intervention_type_normalized = (intervention.intervention_type or '').strip().lower()
+            if intervention_type_normalized in {'counselling', 'counseling', 'psychological'}:
+                GamificationController.process_realtime_action(
+                    student_id=intervention.student_id,
+                    action='counselling_attended'
+                )
             
             flash(f'Intervention completed successfully', 'success')
             return redirect(url_for('intervention_bp.intervention_detail', intervention_id=intervention_id))
@@ -337,19 +378,61 @@ def calendar_view():
     
     interventions = Intervention.query.filter(
         Intervention.scheduled_date >= start_date,
-        Intervention.scheduled_date < end_date
+        Intervention.scheduled_date < end_date,
+        Intervention.status.in_(['Scheduled', 'In Progress'])
+    ).all()
+
+    follow_up_interventions = Intervention.query.filter(
+        Intervention.follow_up_required == True,
+        Intervention.follow_up_date >= start_date,
+        Intervention.follow_up_date < end_date,
+        Intervention.status == 'Completed'
     ).all()
     
-    # Group by date
+    # Group by date for table rendering (ORM objects)
     interventions_by_date = {}
+    # Separate JSON-safe structure for calendar JS rendering
+    interventions_by_date_json = {}
     for intervention in interventions:
         date_key = intervention.scheduled_date.strftime('%Y-%m-%d')
         if date_key not in interventions_by_date:
             interventions_by_date[date_key] = []
+        if date_key not in interventions_by_date_json:
+            interventions_by_date_json[date_key] = []
+
         interventions_by_date[date_key].append(intervention)
+        interventions_by_date_json[date_key].append({
+            'id': intervention.id,
+            'student_id': intervention.student_id,
+            'student_name': intervention.student.name if intervention.student else 'Unknown',
+            'intervention_type': intervention.intervention_type,
+            'priority': intervention.priority,
+            'status': intervention.status,
+            'assigned_to': intervention.assigned_to,
+            'scheduled_date': intervention.scheduled_date.isoformat() if intervention.scheduled_date else None,
+            'is_follow_up': False,
+        })
+
+    for intervention in follow_up_interventions:
+        date_key = intervention.follow_up_date.strftime('%Y-%m-%d')
+        if date_key not in interventions_by_date_json:
+            interventions_by_date_json[date_key] = []
+
+        interventions_by_date_json[date_key].append({
+            'id': intervention.id,
+            'student_id': intervention.student_id,
+            'student_name': intervention.student.name if intervention.student else 'Unknown',
+            'intervention_type': intervention.intervention_type,
+            'priority': intervention.priority,
+            'status': intervention.status,
+            'assigned_to': intervention.assigned_to,
+            'follow_up_date': intervention.follow_up_date.isoformat() if intervention.follow_up_date else None,
+            'is_follow_up': True,
+        })
     
     return render_template('interventions_calendar.html',
                          interventions_by_date=interventions_by_date,
+                         interventions_by_date_json=interventions_by_date_json,
                          month=month,
                          year=year)
 
@@ -404,7 +487,15 @@ def calendar_data_api():
     
     interventions = Intervention.query.filter(
         Intervention.scheduled_date >= start_date,
-        Intervention.scheduled_date < end_date
+        Intervention.scheduled_date < end_date,
+        Intervention.status.in_(['Scheduled', 'In Progress'])
+    ).all()
+
+    follow_up_interventions = Intervention.query.filter(
+        Intervention.follow_up_required == True,
+        Intervention.follow_up_date >= start_date,
+        Intervention.follow_up_date < end_date,
+        Intervention.status == 'Completed'
     ).all()
     
     events = []
@@ -414,6 +505,15 @@ def calendar_data_api():
             'title': f"{intervention.student.name} - {intervention.intervention_type}",
             'start': intervention.scheduled_date.strftime('%Y-%m-%d'),
             'className': f'priority-{intervention.priority.lower()}',
+            'url': url_for('intervention_bp.intervention_detail', intervention_id=intervention.id)
+        })
+
+    for intervention in follow_up_interventions:
+        events.append({
+            'id': intervention.id,
+            'title': f"Follow-up: {intervention.student.name} - {intervention.intervention_type}",
+            'start': intervention.follow_up_date.strftime('%Y-%m-%d'),
+            'className': 'priority-follow-up',
             'url': url_for('intervention_bp.intervention_detail', intervention_id=intervention.id)
         })
     

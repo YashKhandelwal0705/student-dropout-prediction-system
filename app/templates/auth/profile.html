@@ -125,10 +125,12 @@
                         </div>
                         {% endif %}
                         
+                        {% if not user.is_admin %}
                         <div class="alert alert-info">
                             <i class="fas fa-info-circle me-2"></i>
                             <strong>Note:</strong> Profile editing is currently disabled. Contact an administrator to update your information.
                         </div>
+                        {% endif %}
                     </form>
                 </div>
             </div>

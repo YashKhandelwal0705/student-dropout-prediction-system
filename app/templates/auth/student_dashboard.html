@@ -143,14 +143,14 @@
                         <div class="list-group-item">
                             <div class="d-flex justify-content-between">
                                 <h6 class="mb-1">
-                                    <span class="badge bg-{{ 'danger' if alert.severity == 'high' else 'warning' if alert.severity == 'medium' else 'info' }}">
+                                    <span class="badge bg-{{ 'danger' if alert.severity|lower in ['critical', 'high'] else 'warning' if alert.severity|lower == 'medium' else 'info' }}">
                                         {{ alert.severity|upper }}
                                     </span>
                                     {{ alert.alert_type }}
                                 </h6>
                                 <small>{{ alert.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
                             </div>
-                            <p class="mb-1">{{ alert.message }}</p>
+                            <p class="mb-1">{{ alert.description }}</p>
                             <small class="text-muted">Status: {{ alert.status }}</small>
                         </div>
                         {% endfor %}

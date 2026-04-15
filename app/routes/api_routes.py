@@ -5,9 +5,11 @@ Provides REST endpoints for predictions and chatbot.
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from app.controllers import prediction_controller
-from app.models import Student, RiskPrediction, TeacherStudentAssignment
+from app.controllers.gamification_controller import GamificationController
+from app.models import Student, RiskPrediction, TeacherStudentAssignment, BehavioralData
 from app.extensions import db
 from app.services.chatbot import chatbot_reply_from_user
+from datetime import datetime
 
 api_bp = Blueprint('api_bp', __name__)
 
@@ -75,6 +77,11 @@ def predict(student_id):
         )
         db.session.add(new_prediction)
         db.session.commit()
+
+        gamification_update = GamificationController.process_realtime_action(
+            student_id=student.id,
+            action='prediction_request'
+        )
     except Exception as exc:
         db.session.rollback()
         return jsonify({'error': f'Prediction failed: {exc}'}), 500
@@ -86,7 +93,48 @@ def predict(student_id):
         'risk_category': risk_category,
         'shap_explanations': top_features,
         'lime_explanations': lime_features,
-        'attention_weights': attention_weights
+        'attention_weights': attention_weights,
+        'gamification': gamification_update,
+    })
+
+
+@api_bp.route('/attendance/<int:student_id>', methods=['POST'])
+@login_required
+def mark_attendance(student_id):
+    """Record attendance and trigger real-time gamification updates."""
+    if not _can_predict_for_student(current_user, student_id):
+        return jsonify({'error': 'Access denied for this student'}), 403
+
+    student = Student.query.get_or_404(student_id)
+    payload = request.get_json(silent=True) or {}
+    attended = bool(payload.get('attended', True))
+
+    try:
+        attendance_rate = 100.0 if attended else 0.0
+        behavioral = BehavioralData(
+            student_id=student.id,
+            record_date=datetime.utcnow(),
+            attendance_rate=attendance_rate,
+            behavioral_risk_score=0.0 if attended else 80.0,
+        )
+        db.session.add(behavioral)
+        db.session.commit()
+
+        gamification_update = GamificationController.process_realtime_action(
+            student_id=student.id,
+            action='attendance_marked',
+            attended=attended,
+        )
+    except Exception as exc:
+        db.session.rollback()
+        return jsonify({'error': f'Attendance update failed: {exc}'}), 500
+
+    return jsonify({
+        'status': 'success',
+        'student_id': student.id,
+        'attended': attended,
+        'attendance_rate': attendance_rate,
+        'gamification': gamification_update,
     })
 
 @api_bp.route('/chatbot', methods=['POST'])
@@ -102,4 +150,45 @@ def chat():
         return jsonify({'error': 'Message cannot be empty'}), 400
 
     bot_response = chatbot_reply_from_user(user_message, current_user)
-    return jsonify({'response': bot_response})
+    gamification_update = None
+    if current_user.student_profile:
+        gamification_update = GamificationController.process_realtime_action(
+            student_id=current_user.student_profile.id,
+            action='counselling_interaction'
+        )
+
+    return jsonify({'response': bot_response, 'gamification': gamification_update})
+
+
+@api_bp.route('/gamification/action/<int:student_id>', methods=['POST'])
+@login_required
+def gamification_action(student_id):
+    """Trigger a specific gamification action for a student with immediate updates."""
+    if not _can_predict_for_student(current_user, student_id):
+        return jsonify({'error': 'Access denied for this student'}), 403
+
+    payload = request.get_json(silent=True) or {}
+    action = payload.get('action')
+    attended = bool(payload.get('attended', True))
+    badge_context = payload.get('badge_context') if isinstance(payload.get('badge_context'), dict) else None
+
+    if not action:
+        return jsonify({'error': 'Action is required'}), 400
+
+    try:
+        update = GamificationController.process_realtime_action(
+            student_id=student_id,
+            action=action,
+            attended=attended,
+            badge_context=badge_context,
+        )
+    except ValueError as exc:
+        return jsonify({
+            'error': str(exc),
+            'supported_actions': sorted(GamificationController.SUPPORTED_REALTIME_ACTIONS),
+        }), 400
+    except Exception as exc:
+        db.session.rollback()
+        return jsonify({'error': f'Gamification update failed: {exc}'}), 500
+
+    return jsonify({'status': 'success', 'gamification': update})

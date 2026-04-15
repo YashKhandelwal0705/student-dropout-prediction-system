@@ -49,6 +49,13 @@ class AuthController:
             return False, None, message
         
         login_user(user, remember=remember)
+
+        if user.is_student and user.student_profile:
+            from app.controllers.gamification_controller import GamificationController
+            GamificationController.process_realtime_action(
+                student_id=user.student_profile.id,
+                action='lms_login'
+            )
         
         # Redirect based on role
         if user.is_teacher:
@@ -190,13 +197,13 @@ class AuthController:
         # Get active alerts
         active_alerts = Alert.query.filter_by(
             student_id=student.id,
-            status='pending'
+            status='Active'
         ).all()
         
         # Get active interventions
-        active_interventions = Intervention.query.filter_by(
-            student_id=student.id,
-            status='in_progress'
+        active_interventions = Intervention.query.filter(
+            Intervention.student_id == student.id,
+            Intervention.status.in_(['Scheduled', 'In Progress'])
         ).all()
         
         # Get gamification profile
