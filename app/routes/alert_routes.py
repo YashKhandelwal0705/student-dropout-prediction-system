@@ -143,6 +143,12 @@ def generate_alerts():
         flash('Access denied. Only staff can generate alerts.', 'danger')
         return redirect(url_for('main_bp.dashboard'))
 
+    source = request.form.get('source', '').strip().lower()
+    allowed_sources = {'scheduled_job', 'data_update', 'system_event'}
+    if source not in allowed_sources:
+        flash('Manual alert generation from dashboard is disabled. Alerts are generated on data updates or scheduled jobs.', 'warning')
+        return redirect(url_for('alert_bp.alerts_dashboard'))
+
     result = AlertController.batch_generate_alerts()
     
     flash(f"Generated alerts for {result['total_students_checked']} students. "

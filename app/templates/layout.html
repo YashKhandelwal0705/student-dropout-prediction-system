@@ -43,14 +43,16 @@
                     <li class="nav-item">
                         <a class="nav-link app-nav-link {{ 'active' if request.endpoint and 'student_bp' in request.endpoint else '' }}" href="{{ url_for('student_bp.list_students') }}"><i class="fas fa-users me-1"></i> Users</a>
                     </li>
+                    {% if current_user.is_teacher or current_user.is_admin %}
+                    <li class="nav-item">
+                        <a class="nav-link app-nav-link {{ 'active' if request.endpoint == 'auth_bp.teacher_manage_students' else '' }}" href="{{ url_for('auth_bp.teacher_manage_students') }}"><i class="fas fa-user-plus me-1"></i> Assignments</a>
+                    </li>
+                    {% endif %}
                     <li class="nav-item">
                         <a class="nav-link app-nav-link {{ 'active' if request.endpoint and 'alert_bp' in request.endpoint else '' }}" href="{{ url_for('alert_bp.alerts_dashboard') }}"><i class="fas fa-bell me-1"></i> Alerts</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link app-nav-link {{ 'active' if request.endpoint and 'intervention_bp' in request.endpoint else '' }}" href="{{ url_for('intervention_bp.interventions_list') }}"><i class="fas fa-hands-helping me-1"></i> Interventions</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link app-nav-link {{ 'active' if request.endpoint and 'counselling_bp' in request.endpoint else '' }}" href="{{ url_for('counselling_bp.dashboard') }}"><i class="fas fa-heart-pulse me-1"></i> Counselling</a>
                     </li>
                     {% endif %}
                     

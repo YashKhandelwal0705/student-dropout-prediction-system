@@ -13,6 +13,11 @@ from datetime import datetime
 auth_bp = Blueprint('auth_bp', __name__)
 
 
+def _can_manage_student_assignments(user):
+    """Allow teachers and admins to manage teacher-student assignments."""
+    return user.is_teacher or user.is_admin
+
+
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
     """Login page"""
@@ -112,23 +117,44 @@ def teacher_dashboard():
 @auth_bp.route('/teacher/manage-students', methods=['GET', 'POST'])
 @login_required
 def teacher_manage_students():
-    """Teacher page to assign/unassign students"""
-    if not current_user.is_teacher:
-        flash('Access denied. Teachers only.', 'danger')
+    """Manage teacher-student assignments (teachers and admins)."""
+    if not _can_manage_student_assignments(current_user):
+        flash('Access denied. Teachers and admins only.', 'danger')
         return redirect(url_for('main_bp.dashboard'))
+
+    teachers = Teacher.query.order_by(Teacher.id.asc()).all() if current_user.is_admin else []
+    selected_teacher_id = None
+
+    if current_user.is_teacher:
+        if not current_user.teacher_profile:
+            flash('Teacher profile not found for current user.', 'danger')
+            return redirect(url_for('main_bp.dashboard'))
+        selected_teacher_id = current_user.teacher_profile.id
+    else:
+        selected_teacher_id = request.args.get('teacher_id', type=int)
     
     if request.method == 'POST':
         action = request.form.get('action')
         
         if action == 'assign':
             student_id = request.form.get('student_id')
+            selected_teacher_id = request.form.get('teacher_id', type=int)
             course_name = request.form.get('course_name')
             semester = request.form.get('semester', 'Spring 2026')
             academic_year = request.form.get('academic_year', '2025-2026')
+
+            if current_user.is_teacher:
+                effective_teacher_id = current_user.teacher_profile.id
+            else:
+                effective_teacher_id = selected_teacher_id
+
+            if not effective_teacher_id:
+                flash('Please select a teacher before assigning a student.', 'warning')
+                return redirect(url_for('auth_bp.teacher_manage_students'))
             
             # Check if assignment already exists
             existing = TeacherStudentAssignment.query.filter_by(
-                teacher_id=current_user.teacher_profile.id,
+                teacher_id=effective_teacher_id,
                 student_id=student_id,
                 course_name=course_name,
                 semester=semester
@@ -136,7 +162,7 @@ def teacher_manage_students():
             
             if existing:
                 if existing.is_active:
-                    flash('This student is already assigned to you for this course.', 'info')
+                    flash('This student is already assigned for this teacher/course/semester.', 'info')
                 else:
                     existing.is_active = True
                     db.session.commit()
@@ -144,7 +170,7 @@ def teacher_manage_students():
             else:
                 # Create new assignment
                 assignment = TeacherStudentAssignment(
-                    teacher_id=current_user.teacher_profile.id,
+                    teacher_id=effective_teacher_id,
                     student_id=student_id,
                     course_name=course_name,
                     semester=semester,
@@ -158,37 +184,54 @@ def teacher_manage_students():
         
         elif action == 'unassign':
             assignment_id = request.form.get('assignment_id')
+            selected_teacher_id = request.form.get('teacher_id', type=int) or selected_teacher_id
             assignment = TeacherStudentAssignment.query.get_or_404(assignment_id)
             
-            # Verify this is the teacher's assignment
-            if assignment.teacher_id != current_user.teacher_profile.id:
+            # Teachers can unassign only their own students; admins can unassign any assignment.
+            if current_user.is_teacher and assignment.teacher_id != current_user.teacher_profile.id:
                 flash('You can only unassign your own students.', 'danger')
             else:
                 assignment.is_active = False
                 db.session.commit()    
                 flash('Student unassigned successfully!', 'success')
-        
+
+        if current_user.is_admin and selected_teacher_id:
+            return redirect(url_for('auth_bp.teacher_manage_students', teacher_id=selected_teacher_id))
         return redirect(url_for('auth_bp.teacher_manage_students'))
     
     # GET request - show management page
     # Get all students for assignment dropdown
     all_students = Student.query.all()
-    
-    # Get current assignments
-    assignments = TeacherStudentAssignment.query.filter_by(
-        teacher_id=current_user.teacher_profile.id,
-        is_active=True
-    ).all()
-    
-    # Get students not yet assigned
-    assigned_student_ids = [a.student_id for a in assignments]
-    unassigned_students = [s for s in all_students if s.id not in assigned_student_ids]
+
+    if current_user.is_teacher:
+        # Teacher view: only own active assignments and available students for that teacher.
+        assignments = TeacherStudentAssignment.query.filter_by(
+            teacher_id=current_user.teacher_profile.id,
+            is_active=True
+        ).all()
+        assigned_student_ids = [a.student_id for a in assignments]
+        unassigned_students = [s for s in all_students if s.id not in assigned_student_ids]
+    else:
+        # Admin view: may filter by teacher to manage that teacher's roster.
+        query = TeacherStudentAssignment.query.filter_by(is_active=True)
+        if selected_teacher_id:
+            query = query.filter_by(teacher_id=selected_teacher_id)
+        assignments = query.all()
+
+        if selected_teacher_id:
+            assigned_student_ids = [a.student_id for a in assignments]
+            unassigned_students = [s for s in all_students if s.id not in assigned_student_ids]
+        else:
+            # Without a selected teacher, admin can browse all assignments and pick from all students.
+            unassigned_students = all_students
     
     return render_template(
         'auth/teacher_manage_students.html',
         assignments=assignments,
         unassigned_students=unassigned_students,
-        all_students=all_students
+        all_students=all_students,
+        teachers=teachers,
+        selected_teacher_id=selected_teacher_id
     )
 
 

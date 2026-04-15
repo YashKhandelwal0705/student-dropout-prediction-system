@@ -9,6 +9,14 @@ from app.extensions import db
 
 class AlertController:
     """Controller for managing student alerts"""
+
+    # Re-alert cooldown after resolution, tuned by severity.
+    RE_ALERT_COOLDOWN_DAYS = {
+        'Critical': 3,
+        'High': 7,
+        'Medium': 14,
+        'Low': 21
+    }
     
     # Alert thresholds
     THRESHOLDS = {
@@ -51,19 +59,31 @@ class AlertController:
         # Check academic performance
         avg_grade = (student.curricular_units_1st_sem_grade + student.curricular_units_2nd_sem_grade) / 2
         academic_alert = AlertController._check_academic_performance(student, avg_grade)
-        if academic_alert and not AlertController._alert_exists(student_id, 'Academic', 'Open'):
+        if (
+            academic_alert
+            and not AlertController._alert_exists(student_id, 'Academic', 'Open')
+            and not AlertController._is_in_resolved_cooldown(student_id, 'Academic', academic_alert.severity)
+        ):
             alerts_generated.append(academic_alert)
         
         # Check financial status
         financial_alert = AlertController._check_financial_status(student)
-        if financial_alert and not AlertController._alert_exists(student_id, 'Financial', 'Open'):
+        if (
+            financial_alert
+            and not AlertController._alert_exists(student_id, 'Financial', 'Open')
+            and not AlertController._is_in_resolved_cooldown(student_id, 'Financial', financial_alert.severity)
+        ):
             alerts_generated.append(financial_alert)
         
         # Check behavioral data if available
         behavioral_data = BehavioralData.query.filter_by(student_id=student_id).order_by(BehavioralData.record_date.desc()).first()
         if behavioral_data:
             behavioral_alert = AlertController._check_behavioral_indicators(student, behavioral_data)
-            if behavioral_alert and not AlertController._alert_exists(student_id, 'Behavioral', 'Open'):
+            if (
+                behavioral_alert
+                and not AlertController._alert_exists(student_id, 'Behavioral', 'Open')
+                and not AlertController._is_in_resolved_cooldown(student_id, 'Behavioral', behavioral_alert.severity)
+            ):
                 alerts_generated.append(behavioral_alert)
         
         # Check LMS engagement if available
@@ -73,14 +93,22 @@ class AlertController:
             # LMS engagement produces an Academic alert; avoid redundant parallel Academic alerts.
             has_open_academic = AlertController._alert_exists(student_id, 'Academic', 'Open')
             has_recent_engagement = AlertController._recent_alert_exists(student_id, 'Academic', 'Low LMS Engagement', days=7)
-            if engagement_alert and not has_open_academic and not has_recent_engagement:
+            in_academic_cooldown = (
+                AlertController._is_in_resolved_cooldown(student_id, 'Academic', engagement_alert.severity)
+                if engagement_alert else False
+            )
+            if engagement_alert and not has_open_academic and not has_recent_engagement and not in_academic_cooldown:
                 alerts_generated.append(engagement_alert)
         
         # Check dropout risk prediction
         latest_prediction = RiskPrediction.query.filter_by(student_id=student_id).order_by(RiskPrediction.prediction_date.desc()).first()
         if latest_prediction:
             dropout_alert = AlertController._check_dropout_risk(student, latest_prediction)
-            if dropout_alert and not AlertController._alert_exists(student_id, 'Psychological', 'Open'):
+            if (
+                dropout_alert
+                and not AlertController._alert_exists(student_id, 'Psychological', 'Open')
+                and not AlertController._is_in_resolved_cooldown(student_id, 'Psychological', dropout_alert.severity)
+            ):
                 alerts_generated.append(dropout_alert)
         
         # Save all generated alerts
@@ -117,6 +145,25 @@ class AlertController:
             Alert.created_at > cutoff_date,
             Alert.status.in_(['Active', 'Acknowledged'])
         ).first() is not None
+
+    @staticmethod
+    def _is_in_resolved_cooldown(student_id, alert_type, severity):
+        """Check if a resolved alert is still inside severity-based cooldown."""
+        latest_resolved = Alert.query.filter_by(
+            student_id=student_id,
+            alert_type=alert_type,
+            status='Resolved'
+        ).order_by(Alert.resolved_at.desc(), Alert.created_at.desc()).first()
+
+        if not latest_resolved:
+            return False
+
+        cooldown_days = AlertController.RE_ALERT_COOLDOWN_DAYS.get(severity, 7)
+        reference_time = latest_resolved.resolved_at or latest_resolved.created_at
+        if not reference_time:
+            return False
+
+        return reference_time >= datetime.utcnow() - timedelta(days=cooldown_days)
     
     @staticmethod
     def _check_academic_performance(student, avg_grade):

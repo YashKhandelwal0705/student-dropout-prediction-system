@@ -61,7 +61,7 @@ class GamificationController:
         },
         'academic_excellence': {
             'name': 'Academic Star',
-            'description': 'Achieved grades above 18 in all subjects',
+            'description': 'Maintained an average grade of 18 or above (out of 20)',
             'icon': '⭐'
         },
         'engagement_master': {
@@ -611,7 +611,7 @@ class GamificationController:
                 'icon': 'fa-trophy',
                 'color': '#FFD700',
                 'description': 'Consistently high academic performance',
-                'requirement': 'Maintain GPA above 3.5',
+                'requirement': 'Maintain average grade >= 18/20',
                 'points': 500
             },
             'Perfect Attendance': {
