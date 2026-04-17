@@ -32,7 +32,7 @@
                 </div>
                 <div class="col-md-6 mb-3">
                     <label for="previous_qualification" class="form-label">Previous Qualification (Code)</label>
-                    <input type="number" class="form-control auth-input" id="previous_qualification" name="previous_qualification" value="{{ student.previous_qualification if student else '1' }}" required>
+                    <input type="number" min="0" step="1" class="form-control auth-input" id="previous_qualification" name="previous_qualification" value="{{ student.previous_qualification if student else '1' }}" required>
                 </div>
                 <div class="col-md-6 mb-3">
                     <label for="curricular_units_1st_sem_grade" class="form-label">1st Semester Grade</label>
@@ -62,7 +62,12 @@
                 </div>
                 <div class="col-md-8 mb-3">
                     <label for="gdp" class="form-label">GDP (Contextual)</label>
-                    <input type="number" step="0.01" class="form-control auth-input" id="gdp" name="gdp" value="{{ student.gdp if student else '0.79' }}" required>
+                    {% if can_edit_gdp and student %}
+                    <input type="number" step="0.01" class="form-control auth-input" id="gdp" name="gdp" value="{{ student.gdp }}" required>
+                    {% else %}
+                    <input type="number" step="0.01" class="form-control auth-input" id="gdp" value="{{ student.gdp if student else default_student_gdp }}" disabled readonly>
+                    <small class="text-muted">Assigned automatically at profile creation. Only admins can edit later.</small>
+                    {% endif %}
                 </div>
             </div>
             <div class="d-flex flex-wrap gap-2">

@@ -5,6 +5,7 @@ Handles user authentication, login, logout, and registration
 from flask import flash, redirect, url_for
 from flask_login import login_user, logout_user, current_user
 from app.models import User, Student, Teacher
+from app.defaults import DEFAULT_STUDENT_GDP
 from app.extensions import db
 from datetime import datetime
 
@@ -113,7 +114,8 @@ class AuthController:
                     name=full_name,
                     email=email,
                     age_at_enrollment=kwargs.get('age', 18),
-                    previous_qualification=kwargs.get('previous_qualification', 1)
+                    previous_qualification=kwargs.get('previous_qualification', 1),
+                    gdp=DEFAULT_STUDENT_GDP,
                 )
                 db.session.add(student)
             

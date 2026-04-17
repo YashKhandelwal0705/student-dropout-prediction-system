@@ -5,6 +5,7 @@ Includes database seeding logic.
 import random
 from models import Student
 from extensions import db
+from app.defaults import DEFAULT_STUDENT_GDP
 from faker import Faker
 
 fake = Faker()
@@ -33,7 +34,7 @@ def seed_db(num_students=50):
             tuition_fees_up_to_date=random.choice([True, False]),
             curricular_units_1st_sem_grade=round(random.uniform(10, 18), 2),
             curricular_units_2nd_sem_grade=round(random.uniform(10, 18), 2),
-            gdp=round(random.uniform(-2, 3), 2)
+            gdp=DEFAULT_STUDENT_GDP
         )
         students_to_add.append(student)
         

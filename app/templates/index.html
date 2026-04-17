@@ -229,7 +229,7 @@
     <div class="col-lg-7">
         <div class="card app-surface-card border-0 mb-4">
             <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold app-title-teal">Dropout Risk Trend</h6>
+                <h6 class="m-0 font-weight-bold app-title-teal">Dropout Risk Trend (7-Day Rolling Avg)</h6>
             </div>
             <div class="card-body">
                 <canvas 
@@ -333,7 +333,7 @@
             const riskTrendCtx = riskTrendCanvas.getContext('2d');
             const chartLabels = JSON.parse(riskTrendCanvas.dataset.labels);
             const chartData = JSON.parse(riskTrendCanvas.dataset.values);
-            createLineChart(riskTrendCtx, chartLabels, chartData, 'Dropout Risk Score');
+            createLineChart(riskTrendCtx, chartLabels, chartData, '7-Day Rolling Avg Risk Score');
         }
 
         // Progress bar logic to fix linter errors

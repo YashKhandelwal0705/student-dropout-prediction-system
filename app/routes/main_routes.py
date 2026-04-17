@@ -11,8 +11,51 @@ from app.controllers.gamification_controller import GamificationController
 from sqlalchemy import desc, func
 import os
 import json
+from datetime import datetime, timedelta
 
 main_bp = Blueprint('main_bp', __name__)
+
+
+def _build_rolling_risk_trend(window_days=7, lookback_days=60):
+    """Build a 7-day rolling average risk trend for the dashboard chart."""
+    start_date = datetime.utcnow().date() - timedelta(days=lookback_days)
+
+    predictions = (
+        RiskPrediction.query
+        .with_entities(RiskPrediction.prediction_date, RiskPrediction.risk_score)
+        .order_by(RiskPrediction.prediction_date.asc())
+        .all()
+    )
+
+    if not predictions:
+        return [], []
+
+    daily_buckets = {}
+    for prediction_date, risk_score in predictions:
+        if prediction_date is None:
+            continue
+        pred_day = prediction_date.date()
+        if pred_day < start_date:
+            continue
+        daily_buckets.setdefault(pred_day, []).append(float(risk_score))
+
+    if not daily_buckets:
+        return [], []
+
+    dates = sorted(daily_buckets.keys())
+    values = [sum(scores) / len(scores) for scores in (daily_buckets[d] for d in dates)]
+
+    rolling_values = []
+    running_sum = 0.0
+    for idx, value in enumerate(values):
+        running_sum += value
+        if idx >= window_days:
+            running_sum -= values[idx - window_days]
+        window_size = min(idx + 1, window_days)
+        rolling_values.append(round(running_sum / window_size, 2))
+
+    chart_labels = [d.strftime('%b %d') for d in dates]
+    return chart_labels, rolling_values
 
 
 def _load_model_comparison():
@@ -76,10 +119,8 @@ def dashboard():
     at_risk_percentage = (high_risk_students / total_students * 100) if total_students > 0 else 0
     at_risk_percentage = max(0, min(round(at_risk_percentage, 2), 100))
     
-    # For chart data (simplified)
-    risk_trend = RiskPrediction.query.order_by(RiskPrediction.prediction_date).limit(10).all()
-    chart_labels = [p.prediction_date.strftime('%b %d') for p in risk_trend]
-    chart_data = [p.risk_score for p in risk_trend]
+    # For chart data: 7-day rolling average of daily risk scores.
+    chart_labels, chart_data = _build_rolling_risk_trend(window_days=7, lookback_days=60)
     
     # Top 5 high-risk students
     top_high_risk_predictions = (

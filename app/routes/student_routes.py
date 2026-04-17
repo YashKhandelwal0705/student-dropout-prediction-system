@@ -6,6 +6,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 from app.controllers import data_controller
 from app.controllers.alert_controller import AlertController
+from app.defaults import DEFAULT_STUDENT_GDP
 from app.models import Student, Alert, Intervention, LMSActivity, BehavioralData, GamificationProfile, Teacher, TeacherStudentAssignment
 from app.controllers.gamification_controller import GamificationController
 from app.extensions import db
@@ -222,10 +223,18 @@ def add_student():
         return redirect(url_for('student_bp.list_students'))
     
     if request.method == 'POST':
-        data_controller.add_student(request.form)
-        flash('Student added successfully!', 'success')
-        return redirect(url_for('student_bp.list_students'))
-    return render_template('student_form.html', form_action='Add Student')
+        try:
+            data_controller.add_student(request.form)
+            flash('Student added successfully!', 'success')
+            return redirect(url_for('student_bp.list_students'))
+        except ValueError as exc:
+            flash(str(exc), 'danger')
+    return render_template(
+        'student_form.html',
+        form_action='Add Student',
+        can_edit_gdp=False,
+        default_student_gdp=DEFAULT_STUDENT_GDP,
+    )
 
 @student_bp.route('/edit/<int:student_id>', methods=['GET', 'POST'])
 @login_required
@@ -241,10 +250,23 @@ def edit_student(student_id):
     
     student = data_controller.get_student_by_id(student_id)
     if request.method == 'POST':
-        data_controller.update_student(student_id, request.form)
-        flash('Student updated successfully!', 'success')
-        return redirect(url_for('student_bp.student_profile', student_id=student_id))
-    return render_template('student_form.html', student=student, form_action='Edit Student')
+        try:
+            data_controller.update_student(
+                student_id,
+                request.form,
+                allow_gdp_edit=current_user.is_admin,
+            )
+            flash('Student updated successfully!', 'success')
+            return redirect(url_for('student_bp.student_profile', student_id=student_id))
+        except ValueError as exc:
+            flash(str(exc), 'danger')
+    return render_template(
+        'student_form.html',
+        student=student,
+        form_action='Edit Student',
+        can_edit_gdp=current_user.is_admin,
+        default_student_gdp=DEFAULT_STUDENT_GDP,
+    )
 
 @student_bp.route('/delete/<int:student_id>', methods=['POST'])
 @login_required

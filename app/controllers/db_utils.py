@@ -4,6 +4,7 @@ Includes database seeding and maintenance functions
 """
 import random
 from datetime import datetime, timedelta
+from app.defaults import DEFAULT_STUDENT_GDP
 from app.models import Student, LMSActivity, BehavioralData, GamificationProfile, User, Teacher, TeacherStudentAssignment
 from app.controllers.alert_controller import AlertController
 from app.extensions import db
@@ -37,6 +38,7 @@ def seed_db(num_students=50):
             email=fake.unique.email(),
             age_at_enrollment=random.randint(18, 25),
             previous_qualification=random.randint(1, 5),
+            gdp=DEFAULT_STUDENT_GDP,
         )
         
         # Configure student based on risk level
@@ -47,7 +49,7 @@ def seed_db(num_students=50):
             student.tuition_fees_up_to_date = random.choice([False, False, True])  # 67% behind
             student.curricular_units_1st_sem_grade = round(random.uniform(8, 13), 2)  # Low grades
             student.curricular_units_2nd_sem_grade = round(random.uniform(8, 12), 2)
-            student.gdp = round(random.uniform(-2, 0), 2)
+            student.gdp = DEFAULT_STUDENT_GDP
             
         elif risk_level == 'medium':
             # Medium-risk: Average grades, some issues
@@ -56,7 +58,7 @@ def seed_db(num_students=50):
             student.tuition_fees_up_to_date = random.choice([True, False])
             student.curricular_units_1st_sem_grade = round(random.uniform(12, 15), 2)
             student.curricular_units_2nd_sem_grade = round(random.uniform(12, 15), 2)
-            student.gdp = round(random.uniform(-1, 2), 2)
+            student.gdp = DEFAULT_STUDENT_GDP
             
         else:  # low-risk
             # Low-risk: Good grades, no financial issues, high engagement
@@ -65,7 +67,7 @@ def seed_db(num_students=50):
             student.tuition_fees_up_to_date = True
             student.curricular_units_1st_sem_grade = round(random.uniform(15, 18), 2)
             student.curricular_units_2nd_sem_grade = round(random.uniform(15, 18), 2)
-            student.gdp = round(random.uniform(1, 3), 2)
+            student.gdp = DEFAULT_STUDENT_GDP
         
         students_to_add.append(student)
         
@@ -437,7 +439,7 @@ def seed_demo_users():
                 tuition_fees_up_to_date=True,
                 curricular_units_1st_sem_grade=15.5,
                 curricular_units_2nd_sem_grade=14.8,
-                gdp=2.1
+                gdp=DEFAULT_STUDENT_GDP
             )
             db.session.add(student_record)
             

@@ -3,12 +3,17 @@ Student Model
 Represents student information and academic data
 """
 from app.extensions import db
+from app.defaults import DEFAULT_STUDENT_GDP
 from datetime import datetime
+from sqlalchemy.orm import validates
 
 
 class Student(db.Model):
     """Student information and academic data"""
     __tablename__ = 'students'
+    __table_args__ = (
+        db.CheckConstraint('previous_qualification >= 0', name='ck_students_previous_qualification_non_negative'),
+    )
     
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), unique=True, nullable=True, index=True)  # Link to User account
@@ -30,7 +35,7 @@ class Student(db.Model):
     curricular_units_2nd_sem_grade = db.Column(db.Float, default=0.0)
     
     # Economic Context
-    gdp = db.Column(db.Float, default=0.0)
+    gdp = db.Column(db.Float, default=DEFAULT_STUDENT_GDP)
     
     # Relationships
     predictions = db.relationship('RiskPrediction', backref='student', lazy=True, cascade='all, delete-orphan')
@@ -43,6 +48,16 @@ class Student(db.Model):
     
     def __repr__(self):
         return f'<Student {self.name}>'
+
+    @validates('previous_qualification')
+    def validate_previous_qualification(self, key, value):
+        """Ensure previous qualification code is non-negative."""
+        if value is None:
+            raise ValueError('Previous qualification is required.')
+        value = int(value)
+        if value < 0:
+            raise ValueError('Previous qualification cannot be negative.')
+        return value
     
     def to_dict(self):
         """Convert student to dictionary for prediction"""
