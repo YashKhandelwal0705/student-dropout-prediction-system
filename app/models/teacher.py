@@ -21,7 +21,13 @@ class Teacher(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships
-    student_assignments = db.relationship('TeacherStudentAssignment', backref='teacher', lazy=True, cascade='all, delete-orphan')
+    student_assignments = db.relationship(
+        'TeacherStudentAssignment',
+        backref='teacher',
+        lazy=True,
+        cascade='all, delete-orphan',
+        passive_deletes=True,
+    )
     
     def set_subjects(self, subject_list):
         """Set subjects as JSON"""
@@ -70,7 +76,16 @@ class TeacherStudentAssignment(db.Model):
     is_active = db.Column(db.Boolean, default=True, index=True)
     
     # Relationships
-    student = db.relationship('Student', backref='teacher_assignments')
+    student = db.relationship(
+        'Student',
+        backref=db.backref(
+            'teacher_assignments',
+            lazy=True,
+            cascade='all, delete-orphan',
+            passive_deletes=True,
+        ),
+        passive_deletes=True,
+    )
     
     __table_args__ = (
         db.UniqueConstraint('teacher_id', 'student_id', 'course_name', 'semester', name='unique_assignment'),

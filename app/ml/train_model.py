@@ -1,7 +1,3 @@
-"""
-Train ML Model
-This script generates dummy data, trains a RandomForestClassifier, and saves the model.
-"""
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
